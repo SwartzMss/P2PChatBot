@@ -1,0 +1,13 @@
+[package]
+name = "SSHChatBot"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { version = "1", features = ["full", "net"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+log = "0.4"
+log4rs = "1.0"
+multicast-socket = "0.2.0"
+uuid = { version = "1.0", features = ["v4"] } 
