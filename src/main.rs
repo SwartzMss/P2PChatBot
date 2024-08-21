@@ -1,4 +1,4 @@
-use tokio::io::{self, AsyncBufReadExt};
+use tokio::io::{self, AsyncBufReadExt, BufReader};
 use clap::Parser;
 use shell_words;
 use log::{info, error};
@@ -24,21 +24,24 @@ async fn main() {
     info!("Application is starting up...");
 
     let multicast_addr = "239.255.255.250:1900";
+    let communication_ip = "192.168.3.196";
+    let communication_port:u16 = 3699;
     let nodes = Arc::new(Mutex::new(HashMap::new()));
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
 
     let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(multicast_addr, notify_tx, nodes.clone()));
-    let message_to_send = String::from("Hello, multicast network!");
-    let sender_handle = tokio::spawn(multicast_discovery::multicast_send(multicast_addr, message_to_send));
+    let sender_handle = tokio::spawn(multicast_discovery::multicast_sender(multicast_addr, communication_ip, communication_port));
 
     // 启动命令行输入处理循环
     let stdin = io::stdin();
-    let mut reader = io::BufReader::new(stdin).lines();
+    let reader = BufReader::new(stdin);
+    let mut lines = reader.lines();
 
     println!("Ready to accept commands. Type 'exit' to quit.");
 
+
     let cmd_handle = tokio::spawn(async move {
-        while let Some(Ok(line)) = reader.next_line().await {
+        while let Ok(Some(line)) = lines.next_line().await { // 这里做了改正
             if line.trim().eq_ignore_ascii_case("exit") {
                 break;
             }
@@ -51,18 +54,20 @@ async fn main() {
                 }
             };
 
-            let cli = Cli::try_parse_from(args);
+            // 假设你有相应的 Cli 和 Commands 结构定义好了
+            let cli = Cli::try_parse_from(&args);
             match cli {
                 Ok(cli) => {
                     match cli.command {
+                        // 假设 Commands 枚举和相应处理函数已正确定义
                         Commands::List => {
-                            commands::list_users().await;
+                            // commands::list_users().await;
                         },
                         Commands::Send { identifier, message } => {
-                            commands::send_message(&identifier, &message).await;
+                            // commands::send_message(&identifier, &message).await;
                         },
                         Commands::Update { uuid, alias } => {
-                            commands::update_alias(&uuid, &alias).await;
+                            // commands::update_alias(&uuid, &alias).await;
                         },
                     }
                 },

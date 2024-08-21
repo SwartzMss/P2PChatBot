@@ -1,10 +1,12 @@
 use tokio::net::UdpSocket;
 use tokio::time::{self, Duration, Instant};
 use std::collections::HashMap;
-use serde_json::from_str;
+use serde_json::{from_str, to_string};
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use std::sync::Arc;
+use uuid::Uuid;
+use std::net::Ipv4Addr;
 use crate::node_manager::{Message, NodeInfo};
 
 pub async fn network_monitor(
@@ -59,13 +61,15 @@ pub async fn network_monitor(
 }
 
 
-pub async fn multicast_sender(multicast_addr: &str, communication_ip: IpAddr, communication_port: u16) -> tokio::io::Result<()> {
+pub async fn multicast_sender(multicast_addr: &str, communication_ip:  &str, communication_port: u16) -> tokio::io::Result<()> {
     let multicast_socket = UdpSocket::bind("0.0.0.0:0").await?;
     multicast_socket.set_multicast_loop_v4(false)?;
     let multicast_addr = multicast_addr.parse::<std::net::SocketAddr>()?;
 
     let mut interval = time::interval(Duration::from_secs(5));
-
+    let communication_ip: Ipv4Addr = communication_ip.parse().map_err(|_e| {
+        tokio::io::Error::new(tokio::io::ErrorKind::InvalidInput, "Invalid IP address")
+    })?;
     loop {
         interval.tick().await;
         let message = Message {

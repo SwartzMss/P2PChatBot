@@ -1,5 +1,5 @@
 use std::net::Ipv4Addr;
-use std::time::Instant;
+use tokio::time::Instant;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
@@ -34,7 +34,7 @@ impl NodeInfo {
 
 // Utility functions to manage nodes in a thread-safe manner
 pub struct NodeManager {
-    nodes: Arc<Mutex<HashMap<String, NodeInfo>>>,
+    pub nodes: Arc<Mutex<HashMap<String, NodeInfo>>>,
 }
 
 impl NodeManager {

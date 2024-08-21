@@ -1,10 +1,9 @@
-// cli.rs
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "Network Application", version = "1.0", author = "Your Name", about = "Manages network sessions and interactions")]
+#[clap(name = "Network Application", version = "1.0", author = "Your Name", about = "Manages network sessions and interactions")]
 pub struct Cli {
-    #[command(subcommand)]
+    #[clap(subcommand)]
     pub command: Commands,
 }
 
