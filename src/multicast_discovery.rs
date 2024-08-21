@@ -1,17 +1,21 @@
-use crate::node_manager::{Message, NodeInfo};
-use tokio::sync::mpsc;
 use tokio::net::UdpSocket;
-use std::net::Ipv4Addr;
 use tokio::time::{self, Duration, Instant};
-use serde_json::from_str;
 use std::collections::HashMap;
+use serde_json::from_str;
+use tokio::sync::mpsc;
+use tokio::sync::Mutex;
+use std::sync::Arc;
+use crate::node_manager::{Message, NodeInfo};
 
-pub async fn multicast_node_monitor(multicast_addr: &str, notify_tx: mpsc::Sender<String>) -> tokio::io::Result<()> {
+pub async fn network_monitor(
+    multicast_addr: &str,
+    notify_tx: mpsc::Sender<String>,
+    nodes: Arc<Mutex<HashMap<String, NodeInfo>>>,
+) -> tokio::io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.join_multicast_v4("239.255.255.250".parse().unwrap(), "0.0.0.0".parse().unwrap())?;
 
     let mut buf = [0u8; 1024];
-    let mut nodes = HashMap::new();
     let mut interval = time::interval(Duration::from_secs(10));
     let start_time = Instant::now();
 
@@ -21,13 +25,15 @@ pub async fn multicast_node_monitor(multicast_addr: &str, notify_tx: mpsc::Sende
                 if let Ok(msg_str) = String::from_utf8(buf[..size].to_vec()) {
                     if let Ok(message) = from_str::<Message>(&msg_str) {
                         let node_name = &message.name;
+                        let mut nodes_locked = nodes.lock().await;
                         if start_time.elapsed() > Duration::from_secs(5) {
-                            let is_new_node = nodes.insert(node_name.clone(), NodeInfo::new(message.ip, message.port)).is_none();
+                            let node_info = NodeInfo::new(message.ip, message.port);
+                            let is_new_node = nodes_locked.insert(node_name.clone(), node_info).is_none();
                             if is_new_node {
                                 notify_tx.send(format!("Node {} came online!", node_name)).await.unwrap();
                             }
                         } else {
-                            nodes.entry(node_name.clone()).or_insert_with(|| NodeInfo::new(message.ip, message.port));
+                            nodes_locked.entry(node_name.clone()).or_insert_with(|| NodeInfo::new(message.ip, message.port));
                         }
                     }
                 }
@@ -35,21 +41,23 @@ pub async fn multicast_node_monitor(multicast_addr: &str, notify_tx: mpsc::Sende
             _ = interval.tick() => {
                 let now = Instant::now();
                 let mut offline_nodes = Vec::new();
+                let mut nodes_locked = nodes.lock().await;
 
-                for (name, node_info) in &nodes {
+                for (name, node_info) in nodes_locked.iter() {
                     if now.duration_since(node_info.last_active) > Duration::from_secs(20) {
                         offline_nodes.push(name.clone());
                     }
                 }
 
                 for name in offline_nodes {
-                    nodes.remove(&name);
+                    nodes_locked.remove(&name);
                     notify_tx.send(format!("Node {} went offline!", name)).await.unwrap();
                 }
             }
         }
     }
 }
+
 
 pub async fn multicast_sender(multicast_addr: &str, communication_ip: IpAddr, communication_port: u16) -> tokio::io::Result<()> {
     let multicast_socket = UdpSocket::bind("0.0.0.0:0").await?;
