@@ -45,39 +45,39 @@ impl NodeManager {
     }
 
     // Asynchronously add a node
-    pub async fn add_node(&self, ip: Ipv4Addr, port: u16, alias: Option<String>) -> Result<(), String> {
+    pub async fn add_node(&self, uuid: String, ip: Ipv4Addr, port: u16) -> Result<(), String> {
         let mut nodes = self.nodes.lock().await;
-        if let Some(ref a) = alias {
-            if nodes.values().any(|node| node.alias.as_ref() == Some(a)) {
-                return Err("Alias already exists".to_string());
-            }
-        }
+        // 仅创建节点信息，别名默认为 None
         let node = NodeInfo::new(ip, port);
-        let uuid = format!("{}:{}", ip, port); // UUID based on IP and port
+        if nodes.contains_key(&uuid) {
+            return Err("UUID already exists".to_string());
+        }
         nodes.insert(uuid, node);
         Ok(())
     }
 
+
     // Asynchronously update a node's alias
-    pub async fn update_node_alias(&self, uuid: &str, alias: Option<String>) -> Result<(), String> {
+    pub async fn update_node_alias(&self, uuid: &str, alias: String) -> Result<(), String> {
         let mut nodes = self.nodes.lock().await;
-        if let Some(ref a) = alias {
-            if nodes.values().any(|node| node.alias.as_ref() == Some(a)) {
-                return Err("Alias already exists".to_string());
-            }
+        // Check if the new alias is already in use by another node
+        if nodes.values().any(|node| node.alias.as_ref() == Some(&alias)) {
+            return Err("Alias already exists".to_string());
         }
+    
         if let Some(node) = nodes.get_mut(uuid) {
-            node.alias = alias;
+            node.alias = Some(alias);  // Update the alias
             return Ok(());
         }
+    
         Err("UUID not found".to_string())
     }
 
     // Asynchronously get node information
-    pub async fn get_node_info(&self, identifier: &str) -> Option<NodeInfo> {
+    pub async fn get_node_info(&self, uuid: &str) -> Option<NodeInfo> {
         let nodes = self.nodes.lock().await;
-        nodes.values().find(|node| node.alias.as_ref() == Some(identifier))
-            .or_else(|| nodes.get(identifier))
+        nodes.values().find(|node| node.alias.as_ref() == Some(uuid))
+            .or_else(|| nodes.get(uuid))
             .cloned() // Clone the data to release the lock
     }
 }
