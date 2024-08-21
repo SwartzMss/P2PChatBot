@@ -1,6 +1,12 @@
 use log::{info};
 use std::env;
 mod multicast_discovery;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::sync::mpsc;
+mod multicast_discovery;
+mod node_manager;
 
 fn main() {
     // 获取可执行文件的路径
@@ -14,4 +20,20 @@ fn main() {
     
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     info!("Application is starting up...");
+    
+    let multicast_addr = "239.255.255.250:1900";
+    let nodes = Arc::new(Mutex::new(node_manager::HashMap::new()));
+    let (notify_tx, mut notify_rx) = mpsc::channel(100);
+
+    let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(multicast_addr, notify_tx, nodes.clone()));
+
+    tokio::spawn(async move {
+        while let Some(notification) = notify_rx.recv().await {
+            println!("Notification: {}", notification);
+        }
+    });
+
+    if let Err(e) = monitor_handle.await {
+        eprintln!("Network monitor failed: {:?}", e);
+    }
 }
