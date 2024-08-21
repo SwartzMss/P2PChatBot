@@ -26,7 +26,10 @@ fn main() {
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
 
     let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(multicast_addr, notify_tx, nodes.clone()));
-
+    
+    let message_to_send = String::from("Hello, multicast network!");
+    let sender_handle = tokio::spawn(multicast_discovery::multicast_send(multicast_addr, message_to_send));
+    
     tokio::spawn(async move {
         while let Some(notification) = notify_rx.recv().await {
             println!("Notification: {}", notification);
@@ -35,5 +38,8 @@ fn main() {
 
     if let Err(e) = monitor_handle.await {
         eprintln!("Network monitor failed: {:?}", e);
+    }
+    if let Err(e) = sender_handle.await {
+        eprintln!("Multicast sender failed: {:?}", e);
     }
 }
