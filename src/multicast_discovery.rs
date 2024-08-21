@@ -1,29 +1,14 @@
+use crate::node_manager::{Message, NodeInfo};
 use tokio::sync::mpsc;
-use tokio::time::{self, Duration, Instant};
 use tokio::net::UdpSocket;
-use std::collections::HashMap;
-use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use serde_json::to_string;
 use std::net::Ipv4Addr;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Message {
-    ip: Ipv4Addr,
-    port: u16,
-    name: String,
-    content: String,
-}
-
-
-struct NodeInfo {
-    last_active: Instant,
-}
+use tokio::time::{self, Duration, Instant};
+use serde_json::from_str;
+use std::collections::HashMap;
 
 pub async fn multicast_listener(multicast_addr: &str, mut msg_tx: mpsc::Sender<Message>) -> tokio::io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
     socket.join_multicast_v4("239.255.255.250".parse::<Ipv4Addr>().unwrap(), "0.0.0.0".parse::<Ipv4Addr>().unwrap())?;
-
 
     let mut buf = [0u8; 1024];
     loop {
