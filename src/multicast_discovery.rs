@@ -6,39 +6,30 @@ use tokio::time::{self, Duration, Instant};
 use serde_json::from_str;
 use std::collections::HashMap;
 
-pub async fn multicast_listener(multicast_addr: &str, mut msg_tx: mpsc::Sender<Message>) -> tokio::io::Result<()> {
+pub async fn multicast_node_monitor(multicast_addr: &str, notify_tx: mpsc::Sender<String>) -> tokio::io::Result<()> {
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
-    socket.join_multicast_v4("239.255.255.250".parse::<Ipv4Addr>().unwrap(), "0.0.0.0".parse::<Ipv4Addr>().unwrap())?;
+    socket.join_multicast_v4("239.255.255.250".parse().unwrap(), "0.0.0.0".parse().unwrap())?;
 
     let mut buf = [0u8; 1024];
-    loop {
-        let (size, _sender) = socket.recv_from(&mut buf).await?;
-        if let Ok(msg_str) = String::from_utf8(buf[..size].to_vec()) {
-            if let Ok(message) = serde_json::from_str::<Message>(&msg_str) {
-                msg_tx.send(message).await.unwrap();
-            }
-        }
-    }
-}
-
-pub async fn node_monitor(mut msg_rx: mpsc::Receiver<Message>, mut notify_tx: mpsc::Sender<String>) {
     let mut nodes = HashMap::new();
     let mut interval = time::interval(Duration::from_secs(10));
-    let start_time = Instant::now();  // 跟踪启动时间
+    let start_time = Instant::now();
 
     loop {
         tokio::select! {
-            Some(message) = msg_rx.recv() => {
-                let node_name = &message.name;
-                // 判断是否超过初始化期5秒
-                if start_time.elapsed() > Duration::from_secs(5) {
-                    let is_new_node = nodes.insert(node_name.clone(), NodeInfo { last_active: Instant::now() }).is_none();
-                    if is_new_node {
-                        notify_tx.send(format!("Node {} came online!", node_name)).await.unwrap();
+            Ok((size, _)) = socket.recv_from(&mut buf) => {
+                if let Ok(msg_str) = String::from_utf8(buf[..size].to_vec()) {
+                    if let Ok(message) = from_str::<Message>(&msg_str) {
+                        let node_name = &message.name;
+                        if start_time.elapsed() > Duration::from_secs(5) {
+                            let is_new_node = nodes.insert(node_name.clone(), NodeInfo::new(message.ip, message.port)).is_none();
+                            if is_new_node {
+                                notify_tx.send(format!("Node {} came online!", node_name)).await.unwrap();
+                            }
+                        } else {
+                            nodes.entry(node_name.clone()).or_insert_with(|| NodeInfo::new(message.ip, message.port));
+                        }
                     }
-                } else {
-                    // 在5秒内，仅更新活动时间
-                    nodes.entry(node_name.clone()).or_insert_with(|| NodeInfo { last_active: Instant::now() });
                 }
             },
             _ = interval.tick() => {
