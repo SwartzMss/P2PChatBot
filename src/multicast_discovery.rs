@@ -5,9 +5,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
 use serde_json::to_string;
-use uuid::Uuid;
 use std::net::Ipv4Addr;
-use core::net::Ipv4Addr;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Message {
