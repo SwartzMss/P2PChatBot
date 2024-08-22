@@ -76,8 +76,9 @@ impl NodeManager {
     // Asynchronously get node information
     pub async fn get_node_info(&self, uuid: &str) -> Option<NodeInfo> {
         let nodes = self.nodes.lock().await;
-        nodes.values().find(|node| node.alias.as_ref() == Some(uuid))
+        nodes.values().find(|node| node.alias.as_ref().map(String::as_str) == Some(uuid))
             .or_else(|| nodes.get(uuid))
             .cloned() // Clone the data to release the lock
     }
+    
 }

@@ -6,7 +6,9 @@ use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 use std::sync::Arc;
 use uuid::Uuid;
+use std::net::SocketAddr;
 use std::net::Ipv4Addr;
+use tokio::io::{self, ErrorKind};
 use crate::node_manager::{Message, NodeInfo};
 
 pub async fn network_monitor(
@@ -64,7 +66,10 @@ pub async fn network_monitor(
 pub async fn multicast_sender(multicast_addr: &str, communication_ip:  &str, communication_port: u16) -> tokio::io::Result<()> {
     let multicast_socket = UdpSocket::bind("0.0.0.0:0").await?;
     multicast_socket.set_multicast_loop_v4(false)?;
-    let multicast_addr = multicast_addr.parse::<std::net::SocketAddr>()?;
+
+    let multicast_addr: SocketAddr = multicast_addr.parse().map_err(|e| {
+        io::Error::new(ErrorKind::InvalidInput, e)
+    })?;
 
     let mut interval = time::interval(Duration::from_secs(5));
     let communication_ip: Ipv4Addr = communication_ip.parse().map_err(|_e| {
