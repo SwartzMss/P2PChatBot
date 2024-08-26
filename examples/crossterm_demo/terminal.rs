@@ -1,9 +1,10 @@
 use crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
+    event::{self, Event, KeyCode, KeyEvent},
     execute,
-    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    ExecutableCommand,
+    terminal::{enable_raw_mode, disable_raw_mode},
 };
-use tokio::io::{self, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt, Stdout};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -13,6 +14,7 @@ pub async fn run_terminal() -> crossterm::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     stdout.write_all(b"Please enter commands:\n").await?;
+    stdout.flush().await?;
 
     let input_buffer = Arc::new(Mutex::new(String::new()));
 
@@ -26,18 +28,23 @@ pub async fn run_terminal() -> crossterm::Result<()> {
                 KeyCode::Char(c) => {
                     let mut input = input_buffer.lock().await;
                     input.push(c);
+                    stdout.write_all(&[c as u8]).await?;
                 }
                 KeyCode::Enter => {
                     let input = input_buffer.lock().await.clone();
                     process_command(&input).await;
                     input_buffer.lock().await.clear();
+                    stdout.write_all(b"\nPlease enter commands:\n").await?;
                 }
                 KeyCode::Backspace => {
                     let mut input = input_buffer.lock().await;
-                    input.pop();
+                    if !input.is_empty() {
+                        input.pop();
+                    }
                 }
                 _ => {}
             }
+            stdout.flush().await?;
         }
     }
 
