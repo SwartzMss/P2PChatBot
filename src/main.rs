@@ -6,12 +6,13 @@ use std::env;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
-
+mod node_manager;
 mod cli;
 mod commands;
 mod multicast_discovery;
-mod node_manager;
 
+use node_manager::NodeManager;
+use commands::CommandHandler;
 use cli::{Cli, Commands};
 
 #[tokio::main]
@@ -32,16 +33,19 @@ async fn main() {
     let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(multicast_addr, notify_tx, nodes.clone()));
     let sender_handle = tokio::spawn(multicast_discovery::multicast_sender(multicast_addr, communication_ip, communication_port));
 
-    // 启动命令行输入处理循环
     let stdin = io::stdin();
     let reader = BufReader::new(stdin);
     let mut lines = reader.lines();
 
     println!("Ready to accept commands. Type 'exit' to quit.");
 
+    let node_manager = Arc::new(NodeManager::new());
+
+
+    let command_handler = CommandHandler::new(node_manager.clone());
 
     let cmd_handle = tokio::spawn(async move {
-        while let Ok(Some(line)) = lines.next_line().await { // 这里做了改正
+        while let Ok(Some(line)) = lines.next_line().await {
             if line.trim().eq_ignore_ascii_case("exit") {
                 break;
             }
@@ -54,14 +58,13 @@ async fn main() {
                 }
             };
 
-            // 假设你有相应的 Cli 和 Commands 结构定义好了
+
             let cli = Cli::try_parse_from(&args);
             match cli {
                 Ok(cli) => {
                     match cli.command {
-                        // 假设 Commands 枚举和相应处理函数已正确定义
                         Commands::List => {
-                            // commands::list_users().await;
+                            command_handler.list_users().await;
                         },
                         Commands::Send { identifier, message } => {
                             // commands::send_message(&identifier, &message).await;

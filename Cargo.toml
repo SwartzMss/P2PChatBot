@@ -12,3 +12,17 @@ log4rs = "1.0"
 uuid = { version = "1.0", features = ["v4"] } 
 clap = { version = "3.1.18", features = ["derive"] }
 shell-words = "1.1.0"
+crossterm = "0.26"
+
+[[example]]
+name = "multicast_send"
+path = "examples/multicast_send/main.rs"
+
+[[example]]
+name = "multicast_receive"
+path = "examples/multicast_receive/main.rs"
+
+[[example]]
+name = "crossterm_demo"
+path = "examples/crossterm_demo/main.rs"
+
