@@ -1,3 +1,8 @@
 1.Rust文件的命名
     在 Rust 中，源文件的命名通常采用小写字母和下划线来分隔单词，遵循“snake_case”（蛇形命名法）。
     因此，对于你提到的文件名 multicastDiscovery.rs，更符合 Rust 的命名规范的写法应该是 multicast_discovery.rs
+2.给可执行文件传递参数
+    cargo run --example clap_demo -- hello-world
+3.clap的子命令
+    当你定义一个 Commands::HelloWorld 枚举变体时，clap 会默认认为它对应的命令行输入应该是 hello-world。
+    这意味着在命令行中，你应该输入 hello-world，而不是 HelloWorld 或其他形式。
