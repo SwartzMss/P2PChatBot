@@ -4,6 +4,7 @@ use tokio::net::UdpSocket;
 async fn main() -> std::io::Result<()> {
     // 绑定到任意地址和端口
     let socket = UdpSocket::bind("0.0.0.0:0").await?;
+    socket.set_multicast_loop_v4(true)?;
     
     // 设置组播地址和端口
     let multicast_addr = "239.255.255.250:3000";

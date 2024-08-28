@@ -14,6 +14,7 @@ clap = { version = "3.1.18", features = ["derive"] }
 shell-words = "1.1.0"
 crossterm = "0.26"
 rustyline = "9.1.0"
+tui = "0.19"
 
 [[example]]
 name = "clap_demo"
@@ -31,3 +32,6 @@ path = "examples/multicast_receive/main.rs"
 name = "terminal_demo"
 path = "examples/terminal_demo/main.rs"
 
+[[example]]
+name = "tui_demo"
+path = "examples/tui_demo/main.rs"

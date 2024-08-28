@@ -1,5 +1,4 @@
 use tokio::io::{self, AsyncBufReadExt, BufReader};
-use clap::Parser;
 use shell_words;
 use log::{info, error};
 use std::env;
@@ -7,13 +6,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{Mutex, mpsc};
 mod node_manager;
-mod cli;
 mod commands;
 mod multicast_discovery;
 
 use node_manager::NodeManager;
 use commands::CommandHandler;
-use cli::{Cli, Commands};
+
 
 #[tokio::main]
 async fn main() {
@@ -24,13 +22,13 @@ async fn main() {
     log4rs::init_file("log4rs.yaml", Default::default()).unwrap();
     info!("Application is starting up...");
 
-    let multicast_addr = "239.255.255.250:1900";
+    let multicast_addr = "239.255.255.250:3000";
     let communication_ip = "192.168.3.196";
     let communication_port:u16 = 3699;
     let nodes = Arc::new(Mutex::new(HashMap::new()));
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
 
-    let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(multicast_addr, notify_tx, nodes.clone()));
+    let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(notify_tx, nodes.clone()));
     let sender_handle = tokio::spawn(multicast_discovery::multicast_sender(multicast_addr, communication_ip, communication_port));
 
     let stdin = io::stdin();
@@ -58,26 +56,6 @@ async fn main() {
                 }
             };
 
-
-            let cli = Cli::try_parse_from(&args);
-            match cli {
-                Ok(cli) => {
-                    match cli.command {
-                        Commands::List => {
-                            command_handler.list_users().await;
-                        },
-                        Commands::Send { identifier, message } => {
-                            // commands::send_message(&identifier, &message).await;
-                        },
-                        Commands::Update { uuid, alias } => {
-                            // commands::update_alias(&uuid, &alias).await;
-                        },
-                    }
-                },
-                Err(e) => {
-                    println!("Invalid command: {}", e);
-                }
-            }
         }
         println!("Exiting command input loop.");
     });
