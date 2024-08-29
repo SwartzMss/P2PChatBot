@@ -14,6 +14,7 @@ impl CommandHandler {
 
     // List all users
     pub async fn list_users(&self) {
+        println!("list_users function entered.");
         let nodes = self.node_manager.nodes.lock().await;
         for (uuid, node) in nodes.iter() {
             println!("UUID: {}, IP: {}, Port: {}, Alias: {:?}", uuid, node.ip, node.port, node.alias);
