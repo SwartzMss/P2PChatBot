@@ -35,21 +35,27 @@ async fn main()  -> tokio::io::Result<()> {
     println!("node_name = {}, communication_ip= {}, communication_port = {}", node_name, communication_ip, communication_port);
     let nodes = Arc::new(Mutex::new(HashMap::new()));
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
+    
+    let node_manager = Arc::new(Mutex::new(NodeManager::new()));
+    let command_handler = Arc::new(CommandHandler::new(node_manager.clone()));
 
-    let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(notify_tx, nodes.clone(), node_name.clone()));
+    let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(notify_tx, node_manager.clone(), node_name.clone()));
     let sender_handle = tokio::spawn(multicast_discovery::multicast_sender(multicast_addr, communication_ip, communication_port, node_name.clone()));
 
     println!("Ready to accept commands. Type 'exit' to quit.");
 
-    let node_manager = Arc::new(NodeManager::new());
-    let command_handler = Arc::new(CommandHandler::new(node_manager.clone()));
 
-    terminal::run_terminal(command_handler).await;
+
     tokio::spawn(async move {
         while let Some(notification) = notify_rx.recv().await {
             println!("Notification: {}", notification);
+            let nodes_locked: tokio::sync::MutexGuard<HashMap<String, node_manager::NodeInfo>> = nodes.lock().await;
+            println!("There are {} elements in the nodes.", nodes_locked.len());
         }
     });
+
+    let _ = terminal::run_terminal(command_handler).await;
+
 
     if let Err(e) = monitor_handle.await {
         error!("Network monitor failed: {:?}", e);

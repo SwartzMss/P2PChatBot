@@ -13,8 +13,8 @@ pub async fn run_terminal(command_handler: Arc<CommandHandler>) -> io::Result<()
         if line.trim().eq_ignore_ascii_case("exit") {
             break;
         }
-        println!("mesg = {}",line);
-        process_command(&line,  command_handler.clone()).await;
+        let command_future = process_command(&line,  command_handler.clone()).await;
+        command_future.await;
     }
 
     Ok(())
@@ -22,12 +22,9 @@ pub async fn run_terminal(command_handler: Arc<CommandHandler>) -> io::Result<()
 
 async fn process_command(input: &str, command_handler: Arc<CommandHandler>) -> Pin<Box<dyn Future<Output = ()> + Send>> {
     let args: Vec<&str> = input.trim().split_whitespace().collect();
-    println!("1111 {:?}",args);
     match args.first() {
         Some(&"list_users") => {
-            println!("list_user1111s.");
             let handler = Arc::clone(&command_handler);
-            handler.list_users().await;
             Box::pin(async move {
                 handler.list_users().await;
             })

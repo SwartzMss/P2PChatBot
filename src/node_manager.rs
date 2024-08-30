@@ -1,10 +1,12 @@
+// node_manager.rs
 use std::net::Ipv4Addr;
 use tokio::time::Instant;
+use tokio::sync::mpsc;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
-
+use tokio::time::{self, Duration};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     pub ip: Ipv4Addr,
@@ -44,17 +46,43 @@ impl NodeManager {
         }
     }
 
-    // Asynchronously add a node
-    pub async fn add_node(&self, uuid: String, ip: Ipv4Addr, port: u16) -> Result<(), String> {
-        let mut nodes = self.nodes.lock().await;
-        // 仅创建节点信息，别名默认为 None
-        let node = NodeInfo::new(ip, port);
-        if nodes.contains_key(&uuid) {
-            return Err("UUID already exists".to_string());
-        }
-        nodes.insert(uuid, node);
-        Ok(())
+    pub async fn list_users(&self) -> Vec<String> {
+        let nodes = self.nodes.lock().await;
+        nodes.iter()
+            .map(|(uuid, node)| format!("UUID: {}, IP: {}, Port: {}, Alias: {:?}", uuid, node.ip, node.port, node.alias))
+            .collect()
     }
+
+    pub async fn send_message(&self, uuid: &str, message: &str) -> Result<(), String> {
+        // Dummy: Check if node exists and simulate sending
+        let nodes = self.nodes.lock().await;
+        if nodes.contains_key(uuid) {
+            println!("Message '{}' sent to UUID: {}", message, uuid);
+            Ok(())
+        } else {
+            Err(format!("UUID {} not found", uuid))
+        }
+    }
+
+    // Asynchronously add a node
+    pub async fn add_or_update_node(&self, uuid: String, ip: Ipv4Addr, port: u16) -> Result<bool, String> {
+        let mut nodes = self.nodes.lock().await;
+        println!("Current number of nodes: {}", nodes.len());
+        let node = NodeInfo::new(ip, port);
+        match nodes.entry(uuid.clone()) {
+            std::collections::hash_map::Entry::Vacant(e) => {
+                // 如果 UUID 不存在，则插入新节点
+                e.insert(node);
+                Ok(true) // 返回 true 表示这是一个新节点
+            },
+            std::collections::hash_map::Entry::Occupied(mut e) => {
+                // 如果 UUID 已存在，更新 last_active 时间并保留其他信息
+                e.get_mut().last_active = Instant::now(); // 假设 NodeInfo 中有 last_active 字段
+                Ok(false) // 返回 false 表示这是一个更新的老节点
+            }
+        }
+    }
+    
 
 
     // Asynchronously update a node's alias
@@ -81,4 +109,40 @@ impl NodeManager {
             .cloned() // Clone the data to release the lock
     }
     
+    // Asynchronously remove a node
+    pub async fn remove_node(&self, uuid: String) -> Result<(), String> {
+        let mut nodes = self.nodes.lock().await;
+        if !nodes.contains_key(&uuid) {
+            return Err("UUID does not exist".to_string());
+        }
+        nodes.remove(&uuid);
+        Ok(())
+    }
+
+     // Asynchronously check and notify offline nodes
+     pub async fn check_and_notify_offline_nodes(&self, notify_tx: &mpsc::Sender<String>) -> Result<(), String> {
+        let now = Instant::now();
+        let mut offline_nodes = Vec::new();
+
+        {
+            let mut nodes_locked = self.nodes.lock().await;
+
+            // Check each node's last active time and collect names of offline nodes
+            nodes_locked.retain(|name, node_info| {
+                if now.duration_since(node_info.last_active) > Duration::from_secs(20) {
+                    offline_nodes.push(name.clone());
+                    false // Remove the node from the map
+                } else {
+                    true // Keep the node in the map
+                }
+            });
+        }
+
+        // Send offline notifications for each offline node
+        for name in offline_nodes {
+            notify_tx.send(format!("Node {} went offline!", name)).await.map_err(|e| e.to_string())?;
+        }
+
+        Ok(())
+    }
 }
