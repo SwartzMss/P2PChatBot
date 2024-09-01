@@ -13,6 +13,7 @@ mod node_manager;
 mod commands;
 mod multicast_discovery;
 
+mod udp_connection;
 use node_manager::NodeManager;
 use commands::CommandHandler;
 
@@ -32,8 +33,17 @@ async fn main()  -> tokio::io::Result<()> {
     let local_addr = socket.local_addr()?;
     let communication_ip = local_addr.ip().to_string();
     let communication_port:u16 =  local_addr.port();
+
+    let socket = Arc::new(Mutex::new(socket));
+
+    // 监听任务
+    let listen_socket = Arc::clone(&socket);
+
+    tokio::spawn(async move {
+        udp_connection::start_listening(listen_socket).await.expect("Failed to listen");
+    });
+
     println!("node_name = {}, communication_ip= {}, communication_port = {}", node_name, communication_ip, communication_port);
-    let nodes = Arc::new(Mutex::new(HashMap::new()));
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
     
     let node_manager = Arc::new(Mutex::new(NodeManager::new()));
@@ -49,14 +59,18 @@ async fn main()  -> tokio::io::Result<()> {
     tokio::spawn(async move {
         while let Some(notification) = notify_rx.recv().await {
             println!("Notification: {}", notification);
-            let nodes_locked: tokio::sync::MutexGuard<HashMap<String, node_manager::NodeInfo>> = nodes.lock().await;
-            println!("There are {} elements in the nodes.", nodes_locked.len());
         }
     });
 
-    let _ = terminal::run_terminal(command_handler).await;
+    let terminal_handle = tokio::spawn(async move {
+        if let Err(e) = terminal::run_terminal(command_handler).await {
+            error!("Terminal Error: {:?}", e);
+        }
+    });
 
-
+    if let Err(e) = terminal_handle.await {
+        error!("terminal handle failed: {:?}", e);
+    }
     if let Err(e) = monitor_handle.await {
         error!("Network monitor failed: {:?}", e);
     }

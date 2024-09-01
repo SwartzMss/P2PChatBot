@@ -67,7 +67,6 @@ impl NodeManager {
     // Asynchronously add a node
     pub async fn add_or_update_node(&self, uuid: String, ip: Ipv4Addr, port: u16) -> Result<bool, String> {
         let mut nodes = self.nodes.lock().await;
-        println!("Current number of nodes: {}", nodes.len());
         let node = NodeInfo::new(ip, port);
         match nodes.entry(uuid.clone()) {
             std::collections::hash_map::Entry::Vacant(e) => {
