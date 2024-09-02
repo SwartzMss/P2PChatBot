@@ -11,7 +11,7 @@ pub async fn run_terminal(command_handler: Arc<CommandHandler>) -> io::Result<()
     println!("run_terminal started");
     while let Some(line) = lines.next_line().await? {
         if line.trim().eq_ignore_ascii_case("exit") {
-            break;
+            std::process::exit(0);
         }
         let command_future = process_command(&line,  command_handler.clone()).await;
         command_future.await;
@@ -21,7 +21,13 @@ pub async fn run_terminal(command_handler: Arc<CommandHandler>) -> io::Result<()
 }
 
 async fn process_command(input: &str, command_handler: Arc<CommandHandler>) -> Pin<Box<dyn Future<Output = ()> + Send>> {
-    let args: Vec<&str> = input.trim().split_whitespace().collect();
+    let trimmed_input = input.trim();
+    if trimmed_input.is_empty() {
+        // 如果输入为空或者只有空白字符，则不执行任何操作
+        return Box::pin(async {});
+    }
+
+    let args: Vec<&str> = trimmed_input.split_whitespace().collect();
     match args.first() {
         Some(&"list_users") => {
             let handler = Arc::clone(&command_handler);

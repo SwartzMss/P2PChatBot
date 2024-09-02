@@ -12,7 +12,7 @@ use uuid::Uuid;
 mod node_manager;
 mod commands;
 mod multicast_discovery;
-
+use std::net::Ipv4Addr;
 mod udp_connection;
 use node_manager::NodeManager;
 use commands::CommandHandler;
@@ -38,17 +38,29 @@ async fn main()  -> tokio::io::Result<()> {
 
     // 监听任务
     let listen_socket = Arc::clone(&socket);
-
+    let (tx, mut rx) = mpsc::channel(100);
     tokio::spawn(async move {
-        udp_connection::start_listening(listen_socket).await.expect("Failed to listen");
+        udp_connection::start_listening(listen_socket,tx).await.expect("Failed to listen");
     });
 
     println!("node_name = {}, communication_ip= {}, communication_port = {}", node_name, communication_ip, communication_port);
     let (notify_tx, mut notify_rx) = mpsc::channel(100);
     
-    let node_manager = Arc::new(Mutex::new(NodeManager::new()));
-    let command_handler = Arc::new(CommandHandler::new(node_manager.clone()));
+    let communication_ip_addr: Ipv4Addr = communication_ip.parse().map_err(|_e| {
+        tokio::io::Error::new(tokio::io::ErrorKind::InvalidInput, "Invalid IP address")
+    })?;
 
+
+    let node_manager = Arc::new(Mutex::new(NodeManager::new(communication_ip_addr, communication_port,node_name.clone())));
+    let command_handler = Arc::new(CommandHandler::new(node_manager.clone()));
+    let node_manager_bak = Arc::clone(&node_manager);
+    tokio::spawn(async move {
+        while let Some(message_data) = rx.recv().await {
+            let node_manager = node_manager_bak.clone();
+            // 处理每条消息时锁定 node_manager
+            node_manager.lock().await.process_message(message_data).await;
+        }
+    });
     let monitor_handle = tokio::spawn(multicast_discovery::network_monitor(notify_tx, node_manager.clone(), node_name.clone()));
     let sender_handle = tokio::spawn(multicast_discovery::multicast_sender(multicast_addr, communication_ip, communication_port, node_name.clone()));
 

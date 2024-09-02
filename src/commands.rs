@@ -23,6 +23,7 @@ impl CommandHandler {
 
     // Send a message to a user
     pub async fn send_message(&self, identifier: &str, message: &str) {
+        println!("send_message function entered.");
         let manager = self.node_manager.lock().await; // 获取 Mutex 的锁
         if let Err(e) = manager.send_message(identifier, message).await {
             println!("Failed to send message: {}", e);

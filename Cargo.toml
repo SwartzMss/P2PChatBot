@@ -32,3 +32,12 @@ path = "examples/terminal_demo/main.rs"
 [[example]]
 name = "tui_demo"
 path = "examples/tui_demo/main.rs"
+
+
+[[example]]
+name = "udp_sender"
+path = "examples/udp_sender/main.rs"
+
+[[example]]
+name = "udp_receiver"
+path = "examples/udp_receiver/main.rs"

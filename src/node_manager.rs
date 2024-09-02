@@ -6,7 +6,11 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
+use crate::udp_connection;
 use tokio::time::{self, Duration};
+use tokio::net::UdpSocket;
+use std::io;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
     pub ip: Ipv4Addr,
@@ -37,12 +41,35 @@ impl NodeInfo {
 // Utility functions to manage nodes in a thread-safe manner
 pub struct NodeManager {
     pub nodes: Arc<Mutex<HashMap<String, NodeInfo>>>,
+    pub ip: Ipv4Addr,
+    pub port: u16,
+    pub uuid: String,
 }
 
 impl NodeManager {
-    pub fn new() -> Self {
+    pub fn new(ip: Ipv4Addr, port: u16, uuid: String) -> Self {
         NodeManager {
             nodes: Arc::new(Mutex::new(HashMap::new())),
+            ip,
+            port,
+            uuid,
+        }
+    }
+
+    pub async fn process_message(&self, message_data: Vec<u8>) {
+        match serde_json::from_slice::<Message>(&message_data) {
+            Ok(message) => {
+                println!(
+                    "Received Message: IP = {}, Port = {}, UUID = {}, Content = {}",
+                    message.ip, message.port, message.name, message.content
+                );
+
+                self.add_or_update_node(message.name.clone(), message.ip, message.port).await;
+
+            },
+            Err(e) => {
+                println!("Failed to deserialize message: {}", e);
+            }
         }
     }
 
@@ -53,16 +80,34 @@ impl NodeManager {
             .collect()
     }
 
-    pub async fn send_message(&self, uuid: &str, message: &str) -> Result<(), String> {
-        // Dummy: Check if node exists and simulate sending
+    pub async fn send_message(&self, uuid: &str, content: &str) -> Result<(), String> {
         let nodes = self.nodes.lock().await;
-        if nodes.contains_key(uuid) {
-            println!("Message '{}' sent to UUID: {}", message, uuid);
-            Ok(())
+        if let Some(node_info) = nodes.get(uuid) {
+            // 构建 Message 结构体
+            let message = Message {
+                ip: self.ip,
+                port: self.port,
+                name: self.uuid.clone(),
+                content: content.to_string(),
+            };
+
+            // 将 Message 序列化为 JSON
+            let serialized_message = serde_json::to_string(&message)
+                .map_err(|e| format!("Failed to serialize message: {}", e))?;
+
+            // 调用发送 UDP 消息的函数
+            match udp_connection::send_message(node_info.ip, node_info.port, &serialized_message).await {
+                Ok(_) => {
+                    println!("Message '{}' sent to UUID: {} at {}:{}", content, uuid, node_info.ip, node_info.port);
+                    Ok(())
+                },
+                Err(e) => Err(format!("Failed to send message: {}", e)),
+            }
         } else {
             Err(format!("UUID {} not found", uuid))
         }
     }
+    
 
     // Asynchronously add a node
     pub async fn add_or_update_node(&self, uuid: String, ip: Ipv4Addr, port: u16) -> Result<bool, String> {

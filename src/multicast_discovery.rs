@@ -25,7 +25,6 @@ pub async fn network_monitor(
         tokio::select! {
             Ok((size, _)) = socket.recv_from(&mut buf) => {
                 if let Ok(msg_str) = String::from_utf8(buf[..size].to_vec()) {
-                    // println!("Multicast message receive: {:?}", msg_str);
                     if let Ok(message) = from_str::<Message>(&msg_str) {
                         let node_name = &message.name;
                         if name == *node_name{
